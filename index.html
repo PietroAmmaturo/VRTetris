@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <script src="https://unpkg.com/aframe-look-at-component/dist/aframe-look-at-component.min.js"></script>
+    <script src="https://unpkg.com/aframe-geometry-merger-component/dist/aframe-geometry-merger-component.min.js"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VR Tour Generator</title>
+  </head>
+  <body>
+    <script>
+        AFRAME.registerComponent('fire-event-on-collision', {
+            schema: {
+                objects: { type: 'string', default: '.collidable' },
+                eventName: { type: 'string', default: 'collision' },
+                propagateTo: { type: 'string', default: '[falling]'},
+                minYDistance: { type: 'number', default: 1 } // Minimum distance on the y-axis
+            },
+            tick: function () {
+                const me = new THREE.Box3().setFromObject(this.el.object3D);
+                const collidables = document.querySelectorAll(this.data.objects);
+                
+                const myCenter = new THREE.Vector3(); // Create a vector to store the center
+                me.getCenter(myCenter);
+                collidables.forEach((el) => {
+                    const boxCenter = new THREE.Vector3(); // Create a vector to store the center
+                    const box = new THREE.Box3().setFromObject(el.object3D);
+
+                    // Calculate the center of the bounding box and store it in myCenter
+                    box.getCenter(boxCenter);
+
+                    if (boxCenter.x != myCenter.x || boxCenter.y != myCenter.y) return;
+
+                    // Calculate the vertical (y-axis) distance between centers
+                    const yDistance = Math.abs(myCenter.z - boxCenter.z);
+
+                    // Check for collision if the y-axis distance is below the threshold
+                    if (yDistance < this.data.minYDistance) {
+                        const target = document.querySelector(this.data.propagateTo);
+                        this.el.emit(this.data.eventName);
+                        if (target) target.emit(this.data.eventName);
+                        this.el.removeAttribute('fire-event-on-collision');
+                    }
+                });
+            },
+        });
+
+        AFRAME.registerComponent('stop-on-collision', {
+            init: function () {
+                const el = this.el;
+                el.addEventListener('collision', () => {
+                    if (el.hasAttribute('falling')) el.removeAttribute('falling');
+                    if (el.hasAttribute('snapping-controls')) el.setAttribute('snapping-controls', 'active', false);
+                });
+            },
+        });
+
+        AFRAME.registerComponent('become-collidable-on-collision', {
+            schema: {
+                targets: { type: 'string', default: 'a-box' },
+            },
+            init: function () {
+                const el = this.el;
+                el.addEventListener('collision', () => {
+                    [...el.querySelectorAll(this.data.targets)].forEach(el => el.classList.add('collidable'));
+                });
+            },
+        });
+
+        AFRAME.registerComponent('restart-on-collision', {
+            schema: {
+                wrapper: { type: 'selector', default: '#main' },
+            },
+            init: function () {
+                const el = this.el;
+                const wrapper = this.data.wrapper;
+
+                el.addEventListener('collision', () => {
+                    if (el.hasAttribute('piece')) el.removeAttribute('piece'); else return;
+                    const pieceEl = document.createElement('a-entity');
+                    pieceEl.setAttribute('position', '0 0 100')
+                    pieceEl.setAttribute("piece", '');
+                    wrapper.appendChild(pieceEl);
+                });
+            },
+        });
+
+        AFRAME.registerComponent('falling', {
+            schema: {
+                speed: { default: 0.01 }
+            },
+            init: function () {
+            },
+            tick: function (time, deltaTime) {
+                // Move the camera downwards
+                const currentPosition = this.el.getAttribute('position');
+                const newPosition = {
+                    x: currentPosition.x,
+                    y: currentPosition.y,
+                    z: currentPosition.z - (this.data.speed * deltaTime)
+                };
+                this.el.setAttribute('position', newPosition);
+            }
+        });
+
+        AFRAME.registerComponent('round-z-to-nearest-integer-on-collision', {
+            init: function () {
+                const el = this.el;
+                el.addEventListener('collision', () => {
+                    el.setAttribute('position', {
+                        x: el.object3D.position.x,
+                        y: el.object3D.position.y,
+                        z: Math.round(el.object3D.position.z)
+                    })
+                    console.log('Rounded z position:', el.object3D.position.z);
+                });
+            }
+        });
+
+        AFRAME.registerComponent('piece', {
+            schema: {
+                cameraTimeout: { default: 1000 },
+                pieceTimeout: { default: 2000 },
+                fallingTimeout: { default: 3000 },
+                controlsTimeout: { default: 3000 },
+                maxSize: { default: 3 },
+                slotSize: { default: 1 },
+            },
+            init: function () {
+                setTimeout(() => {
+                    const cameraEl = document.createElement('a-entity');
+                    cameraEl.setAttribute('position', '0 0 5');
+                    cameraEl.setAttribute('camera', 'active: true;');
+                    this.el.appendChild(cameraEl);
+                }, this.data.cameraTimeout);
+                setTimeout(() => {
+                    this.el.setAttribute('stop-on-collision', '');
+                    this.el.setAttribute('restart-on-collision', '');
+                    this.el.setAttribute('become-collidable-on-collision', '');
+                    this.el.setAttribute('round-z-to-nearest-integer-on-collision', '');
+
+                    
+                    const heigth = Math.floor(Math.random() * this.data.maxSize) + 1;
+                    const width = Math.floor(Math.random() * this.data.maxSize) + 1;
+                    const depth = Math.floor(Math.random() * this.data.maxSize) + 1;
+
+                    // Generate a random color
+                    const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16);
+
+                    for (let i = 0; i < width; i++) {
+                        for (let j = 0; j < heigth; j++) {
+                            for (let k = 0; k < depth; k++) {
+                                const box = document.createElement('a-box');
+                                // Set the color and opacity
+                                box.setAttribute('material', {
+                                    color: randomColor,
+                                    opacity: 0.5
+                                });
+                                box.setAttribute('position', {
+                                    x: i,
+                                    y: -j,
+                                    z: k
+                                });
+                                box.setAttribute('scale', {
+                                    x: this.data.slotSize,
+                                    y: this.data.slotSize,
+                                    z: this.data.slotSize
+                                });
+                                box.setAttribute('fire-event-on-collision', '');
+                                box.setAttribute('highlight-edges', '');
+                                this.el.appendChild(box);
+                            }
+                        }
+                    }
+                }, this.data.pieceTimeout);
+                setTimeout(() => {
+                    this.el.setAttribute('falling', '');
+                }, this.data.fallingTimeout);
+                setTimeout(() => {
+                    this.el.setAttribute('snapping-controls', '');
+                }, this.data.controlsTimeout);
+            },
+        });
+
+        AFRAME.registerComponent('snapping-controls', {
+            schema: {
+                snapValue: { default: 1 },
+                borders: { default: 8 },
+                moveKeys: { default: ['w', 'a', 's', 'd'] },
+                active: { default: true },
+                targets: { default: 'a-box'},
+                fastKey: { default: 'm'}
+            },
+            init: function () {
+                this.movingDirection = new THREE.Vector3();
+                this.minX = -this.data.borders * this.data.snapValue;
+                this.maxX = this.data.borders * this.data.snapValue;
+                this.minY = -this.data.borders * this.data.snapValue;
+                this.maxY = this.data.borders * this.data.snapValue;
+                document.addEventListener('keydown', this.onKeyDown.bind(this));
+                document.addEventListener('keyup', this.onKeyUp.bind(this));
+            },
+            onKeyDown: function (event) {
+                if (!this.data.active) return;
+                const key = event.key;
+                if (this.data.moveKeys.includes(key)) {
+                    event.preventDefault();
+                    this.move(key);
+                } else if (this.data.fastKey == key) {
+                    event.preventDefault();
+                    if (this.el.getAttribute('falling'))
+                    this.el.setAttribute('falling', 'speed', 0.05);
+                }
+            },
+            onKeyUp: function (event) {
+                if (!this.data.active) return;
+                const key = event.key;
+                if (this.data.fastKey == key) {
+                    event.preventDefault();
+                    if (this.el.getAttribute('falling'))
+                    this.el.setAttribute('falling', 'speed', 0.01);
+                }
+            },
+            move: function (key) {
+                switch (key) {
+                    case this.data.moveKeys[0]:
+                        this.moveEntity(0, this.data.snapValue);
+                        break;
+                    case this.data.moveKeys[1]:
+                        this.moveEntity(-this.data.snapValue, 0);
+                        break;
+                    case this.data.moveKeys[2]:
+                        this.moveEntity(0, -this.data.snapValue);
+                        break;
+                    case this.data.moveKeys[3]:
+                        this.moveEntity(this.data.snapValue, 0);
+                        break;
+                    default:
+                        break;
+                }
+            },
+            moveEntity: function (deltaX, deltaY) {
+                const oldPosition = this.el.getAttribute('position');
+                const children = this.el.querySelectorAll(this.data.targets);
+                const newPositions = Array.from(children).map(child => {
+                    const currentPosition = child.getAttribute('position');
+                    return {
+                        x: oldPosition.x + currentPosition.x + deltaX,
+                        y: oldPosition.y + currentPosition.y + deltaY,
+                        z: oldPosition.z + currentPosition.z // Keep the z position unchanged
+                    };
+                });
+
+                for (let i = 0; i < newPositions.length; i++) {
+                    if (newPositions[i].x > this.maxX || newPositions[i].x < this.minX || newPositions[i].y > this.maxY || newPositions[i].y < this.minY) return;
+                }
+
+                this.el.object3D.position.copy({x: oldPosition.x + deltaX, y: oldPosition.y + deltaY, z: oldPosition.z});
+            }
+        });
+
+        AFRAME.registerComponent('highlight-edges', {
+            init: function () {
+                const boxGeometry = this.el.getAttribute('geometry');
+                if (boxGeometry && boxGeometry.primitive === 'box') {
+                    this.highlightEdges(boxGeometry.width, boxGeometry.height, boxGeometry.depth);
+                }
+            },
+            highlightEdges: function (width, height, depth) {
+                // Define the corner points of the box
+                const corners = [
+                    { x: -width / 2, y: -height / 2, z: -depth / 2 },
+                    { x: width / 2, y: -height / 2, z: -depth / 2 },
+                    { x: -width / 2, y: height / 2, z: -depth / 2 },
+                    { x: width / 2, y: height / 2, z: -depth / 2 },
+                    { x: -width / 2, y: -height / 2, z: depth / 2 },
+                    { x: width / 2, y: -height / 2, z: depth / 2 },
+                    { x: -width / 2, y: height / 2, z: depth / 2 },
+                    { x: width / 2, y: height / 2, z: depth / 2 }
+                ];
+
+                // Define pairs of corner points that represent the edges
+                const edgePairs = [
+                    [0, 1], [0, 2], [1, 3], [2, 3],
+                    [4, 5], [4, 6], [5, 7], [6, 7],
+                    [0, 4], [1, 5], [2, 6], [3, 7]
+                ];
+
+                // Create line entities to represent the edges
+                for (const pair of edgePairs) {
+                    const startPoint = corners[pair[0]];
+                    const endPoint = corners[pair[1]];
+
+                    const line = document.createElement('a-entity');
+                    line.setAttribute('line', {
+                        start: `${startPoint.x} ${startPoint.y} ${startPoint.z}`,
+                        end: `${endPoint.x} ${endPoint.y} ${endPoint.z}`,
+                        color: this.el.getAttribute('material').color
+                    });
+
+                    this.el.appendChild(line);
+                }
+            }
+        });
+
+        AFRAME.registerComponent('floor', {
+            schema: {
+                border: { type: 'number', default: 8 }, // Size of the grid (nxn)
+                boxColor: { type: 'color', default: '#FFFFFF' } // Black color
+            },
+            init: function () {
+                const offset = this.data.border;
+                const boxColor = this.data.boxColor;
+
+                for (let x = -offset; x <= offset; x++) {
+                    for (let y = -offset; y <= offset; y++) {
+                        const box = document.createElement('a-box');
+                        box.setAttribute('position', `${x} ${y} 0`);
+                        box.setAttribute('width', 1);
+                        box.setAttribute('height', 1);
+                        box.setAttribute('depth', 1);
+                        box.setAttribute('color', boxColor);
+                        box.classList.add('collidable');
+                        this.el.appendChild(box);
+                    }
+                }
+            }
+        });
+
+        setTimeout(() => {
+            document.querySelector('#start').setAttribute("piece", '');
+        }, 5000)
+    </script>
+    <a-scene>
+        <a-sky color="black"></a-sky>
+        <a-entity id="main" floor>
+            <a-entity piece snapping-controls id="start" position = "0 0 100">
+            </a-entity>
+        </a-entity>
+    </a-scene>
+</html>
