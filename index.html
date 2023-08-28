@@ -10,12 +10,14 @@
   </head>
   <body>
     <script>
+        let score = 0;
+
         AFRAME.registerComponent('fire-event-on-collision', {
             schema: {
                 objects: { type: 'string', default: '.collidable' },
                 eventName: { type: 'string', default: 'collision' },
                 propagateTo: { type: 'string', default: '[falling]'},
-                minYDistance: { type: 'number', default: 1 } // Minimum distance on the y-axis
+                minYDistance: { type: 'number', default: 1.5 } // Minimum distance on the y-axis
             },
             tick: function () {
                 const me = new THREE.Box3().setFromObject(this.el.object3D);
@@ -46,31 +48,11 @@
             },
         });
 
-        AFRAME.registerComponent('stop-on-collision', {
-            init: function () {
-                const el = this.el;
-                el.addEventListener('collision', () => {
-                    if (el.hasAttribute('falling')) el.removeAttribute('falling');
-                    if (el.hasAttribute('snapping-controls')) el.setAttribute('snapping-controls', 'active', false);
-                });
-            },
-        });
-
-        AFRAME.registerComponent('become-collidable-on-collision', {
-            schema: {
-                targets: { type: 'string', default: 'a-box' },
-            },
-            init: function () {
-                const el = this.el;
-                el.addEventListener('collision', () => {
-                    [...el.querySelectorAll(this.data.targets)].forEach(el => el.classList.add('collidable'));
-                });
-            },
-        });
-
-        AFRAME.registerComponent('restart-on-collision', {
+        AFRAME.registerComponent('join-and-restart-on-collision', {
             schema: {
                 wrapper: { type: 'selector', default: '#main' },
+                targets: { type: 'string', default: 'a-box' },
+                startingPoint: { type: 'string', default: '0 0 10' }
             },
             init: function () {
                 const el = this.el;
@@ -78,17 +60,34 @@
 
                 el.addEventListener('collision', () => {
                     if (el.hasAttribute('piece')) el.removeAttribute('piece'); else return;
+                    [...el.querySelectorAll(this.data.targets)].forEach(child => {
+                        const stillChild = document.createElement('a-entity');
+                        const oldPos = child.getAttribute('position');
+                        stillChild.setAttribute('position', {
+                            x: el.object3D.position.x + oldPos.x,
+                            y: el.object3D.position.y + oldPos.y,
+                            z: Math.round(el.object3D.position.z + oldPos.z)
+                        });
+                        stillChild.setAttribute('material', child.getAttribute('material'));
+                        stillChild.setAttribute('material', 'opacity', 1);
+                        stillChild.setAttribute('geometry', child.getAttribute('geometry'));
+                        stillChild.classList.add('collidable');
+                        stillChild.classList.add('piece');
+                        this.data.wrapper.appendChild(stillChild);
+                        score++;
+                    });
                     const pieceEl = document.createElement('a-entity');
-                    pieceEl.setAttribute('position', '0 0 100')
+                    pieceEl.setAttribute('position', this.data.startingPoint);
                     pieceEl.setAttribute("piece", '');
                     wrapper.appendChild(pieceEl);
+                    el.parentNode.removeChild(el);
                 });
             },
         });
 
         AFRAME.registerComponent('falling', {
             schema: {
-                speed: { default: 0.01 }
+                speed: { default: 0.001 }
             },
             init: function () {
             },
@@ -104,23 +103,8 @@
             }
         });
 
-        AFRAME.registerComponent('round-z-to-nearest-integer-on-collision', {
-            init: function () {
-                const el = this.el;
-                el.addEventListener('collision', () => {
-                    el.setAttribute('position', {
-                        x: el.object3D.position.x,
-                        y: el.object3D.position.y,
-                        z: Math.round(el.object3D.position.z)
-                    })
-                    console.log('Rounded z position:', el.object3D.position.z);
-                });
-            }
-        });
-
         AFRAME.registerComponent('piece', {
             schema: {
-                cameraTimeout: { default: 1000 },
                 pieceTimeout: { default: 2000 },
                 fallingTimeout: { default: 3000 },
                 controlsTimeout: { default: 3000 },
@@ -128,18 +112,12 @@
                 slotSize: { default: 1 },
             },
             init: function () {
+                const cameraEl = document.createElement('a-entity');
+                this.el.appendChild(cameraEl);
+                cameraEl.setAttribute('position', '0 0 5');
+                cameraEl.setAttribute('camera', 'active: true;');
                 setTimeout(() => {
-                    const cameraEl = document.createElement('a-entity');
-                    cameraEl.setAttribute('position', '0 0 5');
-                    cameraEl.setAttribute('camera', 'active: true;');
-                    this.el.appendChild(cameraEl);
-                }, this.data.cameraTimeout);
-                setTimeout(() => {
-                    this.el.setAttribute('stop-on-collision', '');
-                    this.el.setAttribute('restart-on-collision', '');
-                    this.el.setAttribute('become-collidable-on-collision', '');
-                    this.el.setAttribute('round-z-to-nearest-integer-on-collision', '');
-
+                    this.el.setAttribute('join-and-restart-on-collision', '');
                     
                     const heigth = Math.floor(Math.random() * this.data.maxSize) + 1;
                     const width = Math.floor(Math.random() * this.data.maxSize) + 1;
@@ -155,7 +133,7 @@
                                 // Set the color and opacity
                                 box.setAttribute('material', {
                                     color: randomColor,
-                                    opacity: 0.5
+                                    opacity: 0.2
                                 });
                                 box.setAttribute('position', {
                                     x: i,
@@ -186,18 +164,20 @@
         AFRAME.registerComponent('snapping-controls', {
             schema: {
                 snapValue: { default: 1 },
-                borders: { default: 8 },
+                border: { default: 2 },
                 moveKeys: { default: ['w', 'a', 's', 'd'] },
+                rotateKeys: { default: ['q', 'e'] },
                 active: { default: true },
                 targets: { default: 'a-box'},
-                fastKey: { default: 'm'}
+                fastKey: { default: 'm'},
+                collidables: { default: '.collidable'}
             },
             init: function () {
                 this.movingDirection = new THREE.Vector3();
-                this.minX = -this.data.borders * this.data.snapValue;
-                this.maxX = this.data.borders * this.data.snapValue;
-                this.minY = -this.data.borders * this.data.snapValue;
-                this.maxY = this.data.borders * this.data.snapValue;
+                this.minX = -this.data.border * this.data.snapValue;
+                this.maxX = this.data.border * this.data.snapValue;
+                this.minY = -this.data.border * this.data.snapValue;
+                this.maxY = this.data.border * this.data.snapValue;
                 document.addEventListener('keydown', this.onKeyDown.bind(this));
                 document.addEventListener('keyup', this.onKeyUp.bind(this));
             },
@@ -207,10 +187,13 @@
                 if (this.data.moveKeys.includes(key)) {
                     event.preventDefault();
                     this.move(key);
+                } else if (this.data.rotateKeys.includes(key)) {
+                    event.preventDefault();
+                    this.rotate(key);
                 } else if (this.data.fastKey == key) {
                     event.preventDefault();
                     if (this.el.getAttribute('falling'))
-                    this.el.setAttribute('falling', 'speed', 0.05);
+                    this.el.setAttribute('falling', 'speed', 0.01);
                 }
             },
             onKeyUp: function (event) {
@@ -219,7 +202,7 @@
                 if (this.data.fastKey == key) {
                     event.preventDefault();
                     if (this.el.getAttribute('falling'))
-                    this.el.setAttribute('falling', 'speed', 0.01);
+                    this.el.setAttribute('falling', 'speed', 0.001);
                 }
             },
             move: function (key) {
@@ -240,23 +223,74 @@
                         break;
                 }
             },
-            moveEntity: function (deltaX, deltaY) {
-                const oldPosition = this.el.getAttribute('position');
+            rotate: function (key) {
+                switch (key) {
+                    case this.data.rotateKeys[0]:
+                        this.rotateEntity(Math.PI / 2);
+                        break;
+                    case this.data.rotateKeys[1]:
+                        this.rotateEntity(-Math.PI / 2);
+                        break;
+                    default:
+                        break;
+                }
+            },
+            rotateEntity: function (deltaRad) {
+                const oldParentPosition = this.el.getAttribute('position');
                 const children = this.el.querySelectorAll(this.data.targets);
-                const newPositions = Array.from(children).map(child => {
-                    const currentPosition = child.getAttribute('position');
+                const collidables  = document.querySelectorAll(this.data.collidables);
+                const rotationMatrix = new THREE.Matrix4().makeRotationZ(deltaRad);
+
+                const newChildPositionsRelativeToParent = Array.from(children).map(child => {
+                    const oldChildPosition = child.getAttribute('position');
+                        // Clone the position to avoid modifying the original object
+                    const newChildPosition = { x: oldChildPosition.x, y: oldChildPosition.y, z: oldChildPosition.z };
+                    const rotatedPosition = new THREE.Vector3(oldChildPosition.x, oldChildPosition.y, oldChildPosition.z);
+                    rotatedPosition.applyMatrix4(rotationMatrix);
                     return {
-                        x: oldPosition.x + currentPosition.x + deltaX,
-                        y: oldPosition.y + currentPosition.y + deltaY,
-                        z: oldPosition.z + currentPosition.z // Keep the z position unchanged
+                        x: rotatedPosition.x,
+                        y: rotatedPosition.y,
+                        z: rotatedPosition.z // Keep the z position unchanged
                     };
                 });
+                const newChildPositions = Array.from(newChildPositionsRelativeToParent).map(pos => {
+                    return {
+                        x: oldParentPosition.x + pos.x,
+                        y: oldParentPosition.y + pos.y,
+                        z: oldParentPosition.z + pos.z // Keep the z position unchanged
+                    };
+                });
+                if (!this.checkPositions(newChildPositions, collidables)) return;
 
-                for (let i = 0; i < newPositions.length; i++) {
-                    if (newPositions[i].x > this.maxX || newPositions[i].x < this.minX || newPositions[i].y > this.maxY || newPositions[i].y < this.minY) return;
+                for (let i = 0; i < children.length; i++) children[i].setAttribute('position', newChildPositionsRelativeToParent[i]);
+            },
+            moveEntity: function (deltaX, deltaY) {
+                const oldParentPosition = this.el.getAttribute('position');
+                const children = this.el.querySelectorAll(this.data.targets);
+                const collidables  = document.querySelectorAll(this.data.collidables);
+                const newChildPositions = Array.from(children).map(child => {
+                    const oldChildPosition = child.getAttribute('position');
+                    return {
+                        x: oldParentPosition.x + oldChildPosition.x + deltaX,
+                        y: oldParentPosition.y + oldChildPosition.y + deltaY,
+                        z: oldParentPosition.z + oldChildPosition.z // Keep the z position unchanged
+                    };
+                });
+                if (!this.checkPositions(newChildPositions, collidables)) return;
+                this.el.object3D.position.copy({x: oldParentPosition.x + deltaX, y: oldParentPosition.y + deltaY, z: oldParentPosition.z});
+            },
+            checkPositions: function (newChildPositions, collidables) {
+                for (let i = 0; i < newChildPositions.length; i++) {
+                    if (newChildPositions[i].x > this.maxX || newChildPositions[i].x < this.minX || newChildPositions[i].y > this.maxY || newChildPositions[i].y < this.minY) return false;
+                    for (let j = 0; j < collidables.length; j++) {
+                        const collPos = new THREE.Vector3();
+                        collidables[j].object3D.getWorldPosition(collPos);
+                        const collV = {x: collPos.x, y:  collPos.y, z:  collPos.z};
+                        const newV = {x: newChildPositions[i].x, y: newChildPositions[i].y, z: Math.round(newChildPositions[i].z)};
+                        if (collV.x == newV.x && collV.y == newV.y && collV.z == newV.z) return false;
+                    }
                 }
-
-                this.el.object3D.position.copy({x: oldPosition.x + deltaX, y: oldPosition.y + deltaY, z: oldPosition.z});
+                return true;
             }
         });
 
@@ -306,8 +340,8 @@
 
         AFRAME.registerComponent('floor', {
             schema: {
-                border: { type: 'number', default: 8 }, // Size of the grid (nxn)
-                boxColor: { type: 'color', default: '#FFFFFF' } // Black color
+                border: { type: 'number', default: 2 }, // Size of the grid (nxn)
+                boxColor: { type: 'color', default: '#444444' } // Black color
             },
             init: function () {
                 const offset = this.data.border;
@@ -328,14 +362,92 @@
             }
         });
 
-        setTimeout(() => {
-            document.querySelector('#start').setAttribute("piece", '');
-        }, 5000)
+        AFRAME.registerComponent('group-deletion', {
+            schema: {
+                selector: { default: '.piece' },
+                requiredCount: { default: 25 },
+            },
+
+            init: function () {
+                this.checkGroup();
+            },
+
+            checkGroup: function () {
+                const elements = Array.from(this.el.querySelectorAll(this.data.selector));
+
+                if (elements.length >= this.data.requiredCount) {
+                // Sort elements by Y position
+                elements.sort((a, b) => a.object3D.position.z - b.object3D.position.z);
+
+                // Find elements with the same Y position
+                const group = [];
+                let prevZ = null;
+                for (const element of elements) {
+                    const z = element.object3D.position.z;
+                    if (prevZ === null || z === prevZ) {
+                        group.push(element);
+                        prevZ = z;
+                    } else {
+                        break;
+                    }
+                }
+
+                // Delete group elements and lower others
+                if (group.length >= this.data.requiredCount) {
+                    for (const groupElement of group) {
+                        // Lower remaining elements above by 1 unit
+                        for (const element of elements) {
+                            if (element.object3D.position.x == groupElement.object3D.position.x && element.object3D.position.y == groupElement.object3D.position.y && element.object3D.position.z > groupElement.object3D.position.z) {
+                                element.object3D.position.z -= 1;
+                            }
+                        }
+                        groupElement.parentNode.removeChild(groupElement);
+                    }
+                }
+                }
+            },
+            
+            
+            tick: function (time, timeDelta) {
+                // Call the checkGroup function on each tick for real-time updates
+                this.checkGroup();
+            },
+        });
+        
+        AFRAME.registerComponent('heigth-check', {
+            schema: {
+                selector: { default: '.piece' },
+                maxHeigth: { default: 10 },
+            },
+
+            init: function () {
+                this.end = false;
+                this.checkHeigth();
+            },
+
+            checkHeigth: function () {
+                if (this.end) return;
+                const elements = Array.from(this.el.querySelectorAll(this.data.selector));
+                for (const element of elements) {
+                    if (element.object3D.position.z >= this.data.maxHeigth) {
+                        this.end = true;
+                        if(!window.alert('GAME OVER, SCORE: ' + score)){window.location.reload();}
+                        break;
+                    }
+                }
+            },
+            
+            
+            tick: function (time, timeDelta) {
+                // Call the checkGroup function on each tick for real-time updates
+                this.checkHeigth();
+            },
+        });
     </script>
     <a-scene>
         <a-sky color="black"></a-sky>
-        <a-entity id="main" floor>
-            <a-entity piece snapping-controls id="start" position = "0 0 100">
+        <a-entity id="main" floor group-deletion heigth-check>
+            <a-entity piece snapping-controls id="start" position = "0 0 10">
             </a-entity>
         </a-entity>
     </a-scene>
