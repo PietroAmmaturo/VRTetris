@@ -33,9 +33,10 @@
                     box.getCenter(boxCenter);
 
                     if (boxCenter.x != myCenter.x || boxCenter.y != myCenter.y) return;
+                    if (myCenter.z < boxCenter.z) return;
 
                     // Calculate the vertical (y-axis) distance between centers
-                    const yDistance = Math.abs(myCenter.z - boxCenter.z);
+                    const yDistance = myCenter.z - boxCenter.z;
 
                     // Check for collision if the y-axis distance is below the threshold
                     if (yDistance < this.data.minYDistance) {
@@ -105,10 +106,10 @@
 
         AFRAME.registerComponent('piece', {
             schema: {
-                pieceTimeout: { default: 2000 },
-                fallingTimeout: { default: 3000 },
-                controlsTimeout: { default: 3000 },
-                maxSize: { default: 3 },
+                pieceTimeout: { default: 100 },
+                fallingTimeout: { default: 200 },
+                controlsTimeout: { default: 200 },
+                maxSize: { default: 2 },
                 slotSize: { default: 1 },
             },
             init: function () {
@@ -169,7 +170,7 @@
                 rotateKeys: { default: ['q', 'e'] },
                 active: { default: true },
                 targets: { default: 'a-box'},
-                fastKey: { default: 'm'},
+                fastKey: { default: 'Shift'},
                 collidables: { default: '.collidable'}
             },
             init: function () {
@@ -376,34 +377,37 @@
                 const elements = Array.from(this.el.querySelectorAll(this.data.selector));
 
                 if (elements.length >= this.data.requiredCount) {
-                // Sort elements by Y position
-                elements.sort((a, b) => a.object3D.position.z - b.object3D.position.z);
 
-                // Find elements with the same Y position
-                const group = [];
-                let prevZ = null;
-                for (const element of elements) {
-                    const z = element.object3D.position.z;
-                    if (prevZ === null || z === prevZ) {
-                        group.push(element);
-                        prevZ = z;
-                    } else {
-                        break;
-                    }
-                }
+                    let foundCounter = 0;
+                    // Create a dictionary to group elements by z position
+                    const groupedElements = new Map();
 
-                // Delete group elements and lower others
-                if (group.length >= this.data.requiredCount) {
-                    for (const groupElement of group) {
-                        // Lower remaining elements above by 1 unit
-                        for (const element of elements) {
-                            if (element.object3D.position.x == groupElement.object3D.position.x && element.object3D.position.y == groupElement.object3D.position.y && element.object3D.position.z > groupElement.object3D.position.z) {
-                                element.object3D.position.z -= 1;
-                            }
+                    // Iterate through each element and group them by z position
+                    elements.forEach(element => {
+                        const zPosition = element.object3D.position.z;
+                        
+                        if (!groupedElements.has(zPosition)) {
+                            groupedElements.set(zPosition, []);
                         }
-                        groupElement.parentNode.removeChild(groupElement);
-                    }
-                }
+                        
+                        groupedElements.get(zPosition).push(element);
+                    });
+
+                    // Extract and sort the z positions
+                    const sortedZPositions = Array.from(groupedElements.keys())
+                        .map(parseFloat) // Convert keys to numbers
+                        .sort((a, b) => a - b);
+
+                    sortedZPositions.forEach(position => {
+                        const group = groupedElements.get(position);
+                        // lower higher elements
+                        if (foundCounter > 0) group.forEach(groupElement => groupElement.object3D.position.z -= 1);
+                        // delete the group and increase the counter
+                        if (group.length >= this.data.requiredCount) {
+                            group.forEach(groupElement => groupElement.parentNode.removeChild(groupElement));
+                            foundCounter++;
+                        }
+                    })
                 }
             },
             
