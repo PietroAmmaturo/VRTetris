@@ -5,8 +5,12 @@ AFRAME.registerComponent('piece', {
         controlsTimeout: { default: 200 },
         maxSize: { default: 3 },
         slotSize: { default: 1 },
+        startingPoint: { default: '0 0 15' },
+        controlSettings: { default: {} },
     },
     init: function () {
+        this.el.setAttribute('position', this.data.startingPoint);
+
         function createController(hand) {
             const controllerEntity = document.createElement('a-entity');
             controllerEntity.setAttribute('generic-tracked-controller-controls', `hand: ${hand}`);
@@ -25,7 +29,7 @@ AFRAME.registerComponent('piece', {
 
         const rigEntity = document.createElement('a-entity');
         rigEntity.setAttribute('id', 'rig');
-        rigEntity.setAttribute('position', '0 -1.6 5');
+        rigEntity.setAttribute('position', '0 0 5');
         rigEntity.appendChild(cameraEntity);
         rigEntity.appendChild(leftControllerEntity);
         rigEntity.appendChild(rightControllerEntity);
@@ -34,7 +38,7 @@ AFRAME.registerComponent('piece', {
 
         setTimeout(() => {
             this.el.setAttribute('join-on-collision', '');
-            this.el.setAttribute('restart-on-collision', '');
+            this.el.setAttribute('restart-on-collision', {pieceSettings: this.data});
             this.el.setAttribute('score-on-collision', '');
             this.el.setAttribute('destroy-on-collision', '');
 
@@ -75,7 +79,7 @@ AFRAME.registerComponent('piece', {
             this.el.setAttribute('falling', '');
         }, this.data.fallingTimeout);
         setTimeout(() => {
-            this.el.setAttribute('snapping-controls', '');
+            this.el.setAttribute('snapping-controls', this.data.controlSettings);
             this.el.setAttribute('guide', '');
         }, this.data.controlsTimeout);
     },

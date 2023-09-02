@@ -5,7 +5,7 @@ AFRAME.registerComponent('score-on-collision', {
     },
     init: function () {
         this.fired = false;
-        this.score = 0;
+        this.score = Number.parseInt(this.data.selector.getAttribute('text').value);
         const el = this.el;
         el.addEventListener('collision', () => {
             if (this.fired) return;

@@ -1,17 +1,17 @@
-// components checking if any of its children are above a cerain heigth
-AFRAME.registerComponent('heigth-check', {
+// components checking if any of its children are above a cerain height
+AFRAME.registerComponent('height-check', {
     schema: {
-        maxHeigth: { default: 10 },
+        maxHeight: { default: 10 },
     },
     init: function () {
         this.end = false;
-        this.checkHeigth();
+        this.checkHeight();
     },
-    checkHeigth: function () {
+    checkHeight: function () {
         if (this.end) return;
         const elements = Array.from(this.el.children);
         for (const element of elements) {
-            if (element.object3D.position.z >= this.data.maxHeigth) {
+            if (element.object3D.position.z >= this.data.maxHeight) {
                 this.end = true;
                 if(!window.alert('GAME OVER, SCORE: ' + score)){window.location.reload();}
                 break;
@@ -19,6 +19,6 @@ AFRAME.registerComponent('heigth-check', {
         }
     },
     tick: function (time, timeDelta) {
-        this.checkHeigth();
+        this.checkHeight();
     },
 });

@@ -9,7 +9,7 @@ AFRAME.registerComponent('snapping-controls', {
         targets: { default: 'a-box'},
         fastKey: { default: 'shift'},
         collidables: { default: '.collidable'},
-        enablevr: { default: true},
+        enablevr: { default: false},
         vrSelector: { default: '[generic-tracked-controller-controls]'}
     },
     init: function () {
@@ -22,7 +22,7 @@ AFRAME.registerComponent('snapping-controls', {
         document.addEventListener('keyup', this.onKeyUp.bind(this));
         if (this.data.enablevr) this.setUpVR();
     },
-    setUpVR: function(event) {
+    setUpVR: function() {
         document.querySelectorAll(this.data.vrSelector).forEach(el => el.addEventListener('buttondown', (evt) => {
             const intersectedEls = el.components.raycaster.intersectedEls;
             if (intersectedEls && intersectedEls[0]) {

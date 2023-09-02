@@ -8,24 +8,110 @@
     <script src="falling.js"></script>
     <script src="fire-event-on-collision.js"></script>
     <script src="floor-generator.js"></script>
-    <script src="heigth-check.js"></script>
+    <script src="height-check.js"></script>
     <script src="highlight-edges.js"></script>
     <script src="join-on-collision.js"></script>
     <script src="layer-check.js"></script>
     <script src="piece.js"></script>
     <script src="restart-on-collision.js"></script>
     <script src="score-on-collision.js"></script>
+    <script src="destroy-on-collision.js"></script>
     <script src="snapping-controls.js"></script>
     <script src="arena.js"></script>
-    <script src="guide.js"></script>
 
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VR Tetris</title>
   </head>
   <body>
-    <a-scene>
-        <a-sky color="black"></a-sky>
-        <a-entity arena></a-entity>
+    <!-- Settings Form -->
+    <form id="settings-form">
+      <label for="snap-value">Snap Value:</label>
+      <input type="number" id="snap-value" value="1" /><br /><br />
+
+      <label for="border">Border (from the center):</label>
+      <input type="number" id="border" value="3" /><br /><br />
+
+      <label for="height">Height limit:</label>
+      <input type="number" id="height" value="10" /><br /><br />
+
+      <label for="size">Piece size limit:</label>
+      <input type="number" id="size" value="3" /><br /><br />
+
+      <label for="move-keys">Move Keys (comma-separated):</label>
+      <input type="text" id="move-keys" value="w,a,s,d" /><br /><br />
+
+      <label for="rotate-keys">Rotate Keys (comma-separated):</label>
+      <input
+        type="text"
+        id="rotate-keys"
+        value="arrowleft,arrowup,arrowright"
+      /><br /><br />
+
+      <label for="fast-key">Fast Key:</label>
+      <input type="text" id="fast-key" value="shift" /><br /><br />
+
+      <label for="enable-vr">Enable VR:</label>
+      <input type="checkbox" id="enable-vr" /><br /><br />
+
+      <button type="button" onclick="applySettings()">Apply Settings</button>
+    </form>
+    <a-scene style="display: none;">
+      <a-sky color="black"></a-sky>
+      <a-entity ></a-entity>
     </a-scene>
+    <script>
+      var scene = document.querySelector("a-scene");
+      scene.addEventListener("loaded", function () {
+        scene.pause();
+      });
+      function applySettings() {
+        const snapValue = parseFloat(
+          document.getElementById("snap-value").value
+        );
+        const border = parseFloat(document.getElementById("border").value);
+        const height = parseFloat(document.getElementById("height").value);
+        const size = parseFloat(document.getElementById("size").value);
+        const moveKeys = document.getElementById("move-keys").value.split(",");
+        const rotateKeys = document
+          .getElementById("rotate-keys")
+          .value.split(",");
+        const fastKey = document.getElementById("fast-key").value;
+        const enableVR = document.getElementById("enable-vr").checked;
+
+        // Apply the settings to your A-Frame components or system here
+        // For example, you can use setAttribute to update the components
+        const arena = document.createElement("a-entity");
+        if (arena) {
+          arena.setAttribute("arena", {
+            pieceSettings: {
+              controlSettings: {
+                snapValue: snapValue,
+                border: border,
+                moveKeys: moveKeys,
+                rotateKeys: rotateKeys,
+                fastKey: fastKey,
+                enablevr: enableVR,
+              },
+              slotSize: snapValue,
+              maxSize: size,
+              startingPoint: '0 0 ' + (size + height),
+            },
+            floorSettings: {
+              border: border,
+              slotSize: snapValue,
+            },
+            heightSettings: {
+              maxHeight: height
+            },
+            layerSettings: {
+              border: border
+            }
+          });
+        }
+        document.querySelector("a-scene").style.display = "block";
+        document.querySelector("a-scene").appendChild(arena);
+      }
+    </script>
+  </body>
 </html>

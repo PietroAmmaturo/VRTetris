@@ -21,6 +21,7 @@ AFRAME.registerComponent('join-on-collision', {
                 stillChild.setAttribute('material', child.getAttribute('material'));
                 stillChild.setAttribute('material', 'opacity', 1);
                 stillChild.setAttribute('geometry', child.getAttribute('geometry'));
+                stillChild.setAttribute('scale', child.getAttribute('scale'));
                 stillChild.classList.add('collidable');
                 wrapper.appendChild(stillChild);
             });
